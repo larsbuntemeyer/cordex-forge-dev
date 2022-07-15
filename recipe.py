@@ -103,6 +103,7 @@ async def response_data_processing(
 
     # this takes care of checking that all table_ids are the same, so I can do this
     #table_id = table_ids[0][0]
+    table_id = "Amon" # not found in CORDEX response
 
     # pick http url
     urls = [_parse_url_type(url[0]) for url in raw_urls]
@@ -111,10 +112,10 @@ async def response_data_processing(
     # print(urls)
     print(f"{iid}: Check for netcdf 3 files")
     pattern_kwargs = {}
-    netcdf3_check = await is_netcdf3(session, urls[-1])
+    ##netcdf3_check = await is_netcdf3(session, urls[-1])
     # netcdf3_check = is_netcdf3(urls[-1]) #TODO This works, but this is the part that is slow as hell, so I should async this one...
-    if netcdf3_check:
-        pattern_kwargs["file_type"] = "netcdf3"
+    ##if netcdf3_check:
+    ##    pattern_kwargs["file_type"] = "netcdf3"
 
     # Check retractions (this seems a bit redundant, but what the heck
     #if not all(r is False for r in retracted):
@@ -221,6 +222,7 @@ def _parse_url_type(url: str) -> str:
     if split_url[-1] != "HTTPServer":
         raise ValueError("This recipe currently only supports HTTP links")
     else:
+        print(split_url[0])
         return split_url[0]
 
 
@@ -362,8 +364,8 @@ allowed_divisors = {
 
 ## Recipe Generation
 iids = [
-    "CORDEX.output.AFR-44.DMI.ECMWF-ERAINT.evaluation.r1i1p1.HIRHAM5.v2.day.uas",
-    "CORDEX.output.EUR-11.MPI-CSC.MPI-M-MPI-ESM-LR.historical.r1i1p1.REMO2009.v1.day.tas"
+#    "CORDEX.output.AFR-44.DMI.ECMWF-ERAINT.evaluation.r1i1p1.HIRHAM5.v2.day.uas",
+    "CORDEX.output.EUR-11.MPI-CSC.MPI-M-MPI-ESM-LR.historical.r1i1p1.REMO2009.v1.mon.tas"
 ]
 # TODO: should implement a retry + backoff (i have seen flaky datasets come back after a few minutes.
 
