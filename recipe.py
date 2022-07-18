@@ -22,14 +22,14 @@ def recipe_from_urls(urls, kwargs, ssl):
     return recipe
 
 
-async def is_netcdf3(session: aiohttp.ClientSession, url: str) -> bool:
+async def is_netcdf3(session: aiohttp.ClientSession, url: str, ssl=False) -> bool:
     """Simple check to determine the netcdf file version behind a url.
     Requires the server to support range requests"""
     headers = {"Range": "bytes=0-2"}
     # TODO: how should i handle it if these are failing?
     # TODO: need to implement a retry here too
     # TODO: I believe these are independent of the search nodes? So we should not retry these with another node? I might need to look into what 'replicas' mean in this context.
-    async with session.get(url, headers=headers) as resp:
+    async with session.get(url, headers=headers, ssl=ssl) as resp:
         status_code = resp.status
         if not status_code == 206:
             raise RuntimeError(f"Range request failed with {status_code} for {url}")
@@ -89,6 +89,7 @@ def get_timesteps_simple(dates, table_id):
 
 async def response_data_processing(
     session: aiohttp.ClientSession,
+    ssl,
     response_data: Dict[str, str],
     iid: str,
     facets: Dict[str, str],
@@ -116,8 +117,8 @@ async def response_data_processing(
     # print(urls)
     print(f"{iid}: Check for netcdf 3 files")
     pattern_kwargs = {}
-    ##netcdf3_check = await is_netcdf3(session, urls[-1])
-    # netcdf3_check = is_netcdf3(urls[-1]) #TODO This works, but this is the part that is slow as hell, so I should async this one...
+    netcdf3_check = await is_netcdf3(session, urls[-1], ssl=ssl)
+    #netcdf3_check = is_netcdf3(urls[-1]) #TODO This works, but this is the part that is slow as hell, so I should async this one...
     ##if netcdf3_check:
     ##    pattern_kwargs["file_type"] = "netcdf3"
 
@@ -195,7 +196,7 @@ async def iid_request(session: aiohttp.ClientSession, ssl, iid: str, nodes: List
                 session, node, params, ssl, facets
             )  # TODO: The facets treatment is clunky
             urls, kwargs = await response_data_processing(
-                session, response_data, iid, facets
+                session, ssl, response_data, iid, facets
             )
             break
         except Exception as e:
