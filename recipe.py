@@ -5,16 +5,19 @@ from pangeo_forge_recipes.recipes import XarrayZarrRecipe
 import aiohttp
 import asyncio
 import time
+import ssl
 
-
-def recipe_from_urls(urls, kwargs):
+def recipe_from_urls(urls, kwargs, ssl):
     # parse kwargs for different steps of the recipe
     pattern_kwargs = kwargs.get("pattern_kwargs", {})
     recipe_kwargs = kwargs.get("recipe_kwargs", {})
-
-    pattern = pattern_from_file_sequence(urls, "time", **pattern_kwargs)
+    print('pattern_kwargs:', pattern_kwargs)
+    pattern_kwargs["fsspec_open_kwargs"] = {"ssl": ssl}
+    pattern = pattern_from_file_sequence(urls, "time",
+                                         **pattern_kwargs)
     recipe = XarrayZarrRecipe(
-        pattern, xarray_concat_kwargs={"join": "exact"}, **recipe_kwargs
+        pattern, xarray_concat_kwargs={"join": "exact"},
+        **recipe_kwargs
     )
     return recipe
 
@@ -58,12 +61,13 @@ async def _esgf_api_request(
     session: aiohttp.ClientSession,
     node: str,
     params: Dict[str, str],
+    ssl: ssl.SSLContext,
     facets: Dict[str, str],
 ) -> Dict[str, str]:
-    print(params)
-    print(facets)
-    resp = await session.get(node, params=params)
-    print(resp)
+    #print(params)
+    #print(facets)
+    resp = await session.get(node, params=params, ssl=ssl)
+    #print(resp)
     status_code = resp.status
     if not status_code == 200:
         raise RuntimeError(f"Request failed with {status_code} for {iid}")
@@ -179,7 +183,7 @@ async def response_data_processing(
     return urls, kwargs
 
 
-async def iid_request(session: aiohttp.ClientSession, iid: str, nodes: List[str]):
+async def iid_request(session: aiohttp.ClientSession, ssl, iid: str, nodes: List[str]):
     params, facets = _build_params(iid)
     urls = None
     kwargs = None
@@ -188,7 +192,7 @@ async def iid_request(session: aiohttp.ClientSession, iid: str, nodes: List[str]
         try:
             print(f"Requesting data for Node: {node} and {iid}...")
             response_data = await _esgf_api_request(
-                session, node, params, facets
+                session, node, params, ssl, facets
             )  # TODO: The facets treatment is clunky
             urls, kwargs = await response_data_processing(
                 session, response_data, iid, facets
@@ -339,10 +343,10 @@ def _check_response_facets_consistency(
 
 ## global variables
 nodes = [
- #   "https://esgf-node.llnl.gov/esg-search/search",
+    "https://esgf-node.llnl.gov/esg-search/search",
     "https://esgf-data.dkrz.de/esg-search/search",
- #   "https://esgf-node.ipsl.upmc.fr/esg-search/search",
- #   "https://esgf-index1.ceda.ac.uk/esg-search/search",
+    "https://esgf-node.ipsl.upmc.fr/esg-search/search",
+    "https://esgf-index1.ceda.ac.uk/esg-search/search",
 ]
 
 
@@ -364,13 +368,14 @@ allowed_divisors = {
 
 ## Recipe Generation
 iids = [
-#    "CORDEX.output.AFR-44.DMI.ECMWF-ERAINT.evaluation.r1i1p1.HIRHAM5.v2.day.uas",
-    "CORDEX.output.EUR-11.MPI-CSC.MPI-M-MPI-ESM-LR.historical.r1i1p1.REMO2009.v1.mon.tas"
+    "CORDEX.output.AFR-44.DMI.ECMWF-ERAINT.evaluation.r1i1p1.HIRHAM5.v2.mon.tas",
+    "CORDEX.output.EUR-11.MPI-CSC.MPI-M-MPI-ESM-LR.historical.r1i1p1.REMO2009.v1.mon.tas",
+    "CORDEX.output.EUR-11.MPI-CSC.MPI-M-MPI-ESM-LR.historical.r0i0p0.REMO2009.v1.fx.orog"
 ]
 # TODO: should implement a retry + backoff (i have seen flaky datasets come back after a few minutes.
 
 # Lets try to implement retrys
-async def main(node_list):
+async def main(node_list=nodes, ssl=False):
     # Lets limit the amount of connections to avoid being flagged
     connector = aiohttp.TCPConnector(
         limit_per_host=10
@@ -381,11 +386,11 @@ async def main(node_list):
 
         tasks = []
         for iid in iids:
-            tasks.append(asyncio.ensure_future(iid_request(session, iid, node_list)))
+            tasks.append(asyncio.ensure_future(iid_request(session, ssl, iid, node_list)))
 
         raw_input = await asyncio.gather(*tasks)
         recipe = {
-            iid: recipe_from_urls(urls, kwargs)
+            iid: recipe_from_urls(urls, kwargs, ssl)
             for iid, (urls, kwargs) in zip(iids, raw_input)
             if urls is not None
         }
